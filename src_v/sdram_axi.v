@@ -33,121 +33,132 @@
 //-----------------------------------------------------------------
 
 module sdram_axi
+#(
+    parameter                 DW                 = 32,
+    parameter                 SDRAM_MHZ          = 50,
+    parameter                 SDRAM_ROW_W        = 13,
+    parameter                 SDRAM_BANK_W       = 2,
+    parameter                 SDRAM_COL_W        = 9,
+    parameter                 SDRAM_READ_LATENCY = 2
+)
 (
-    // Inputs
-     input           clk_i
-    ,input           rst_i
-    ,input           inport_awvalid_i
-    ,input  [ 31:0]  inport_awaddr_i
-    ,input  [  3:0]  inport_awid_i
-    ,input  [  7:0]  inport_awlen_i
-    ,input  [  1:0]  inport_awburst_i
-    ,input           inport_wvalid_i
-    ,input  [ 31:0]  inport_wdata_i
-    ,input  [  3:0]  inport_wstrb_i
-    ,input           inport_wlast_i
-    ,input           inport_bready_i
-    ,input           inport_arvalid_i
-    ,input  [ 31:0]  inport_araddr_i
-    ,input  [  3:0]  inport_arid_i
-    ,input  [  7:0]  inport_arlen_i
-    ,input  [  1:0]  inport_arburst_i
-    ,input           inport_rready_i
-    ,input  [ 15:0]  sdram_data_input_i
+    // Reset & clock
+    input                     rst_i,
+    input                     clk_i,
+    
+    // AXI-4 I/F
+    input              [31:0] s00_axi_awaddr_i,
+    input               [3:0] s00_axi_awid_i,
+    input               [7:0] s00_axi_awlen_i,
+    input               [1:0] s00_axi_awburst_i,
+    input                     s00_axi_awvalid_i,
+    output                    s00_axi_awready_o,
+    
+    input            [DW-1:0] s00_axi_wdata_i,
+    input          [DW/8-1:0] s00_axi_wstrb_i,
+    input                     s00_axi_wvalid_i,
+    input                     s00_axi_wlast_i,
+    output                    s00_axi_wready_o,
+    
+    output              [3:0] s00_axi_bid_o,
+    output              [1:0] s00_axi_bresp_o,
+    output                    s00_axi_bvalid_o,
+    input                     s00_axi_bready_i,
+    
+    input              [31:0] s00_axi_araddr_i,
+    input               [3:0] s00_axi_arid_i,
+    input               [7:0] s00_axi_arlen_i,
+    input               [1:0] s00_axi_arburst_i,
+    input                     s00_axi_arvalid_i,
+    output                    s00_axi_arready_o,
 
-    // Outputs
-    ,output          inport_awready_o
-    ,output          inport_wready_o
-    ,output          inport_bvalid_o
-    ,output [  1:0]  inport_bresp_o
-    ,output [  3:0]  inport_bid_o
-    ,output          inport_arready_o
-    ,output          inport_rvalid_o
-    ,output [ 31:0]  inport_rdata_o
-    ,output [  1:0]  inport_rresp_o
-    ,output [  3:0]  inport_rid_o
-    ,output          inport_rlast_o
-    ,output          sdram_clk_o
-    ,output          sdram_cke_o
-    ,output          sdram_cs_o
-    ,output          sdram_ras_o
-    ,output          sdram_cas_o
-    ,output          sdram_we_o
-    ,output [  1:0]  sdram_dqm_o
-    ,output [ 12:0]  sdram_addr_o
-    ,output [  1:0]  sdram_ba_o
-    ,output [ 15:0]  sdram_data_output_o
-    ,output          sdram_data_out_en_o
+    output           [DW-1:0] s00_axi_rdata_o,
+    output                    s00_axi_rvalid_o,
+    output                    s00_axi_rlast_o,
+    output              [3:0] s00_axi_rid_o,
+    output              [1:0] s00_axi_rresp_o,
+    input                     s00_axi_rready_i,
+
+    // SDRAM I/F
+    output                    sdram_clk_o,
+    output                    sdram_cke_o,
+    output                    sdram_cs_o,
+    output                    sdram_ras_o,
+    output                    sdram_cas_o,
+    output                    sdram_we_o,
+    output         [DW/8-1:0] sdram_dqm_o,
+    output  [SDRAM_ROW_W-1:0] sdram_addr_o,
+    output [SDRAM_BANK_W-1:0] sdram_ba_o,
+    input            [DW-1:0] sdram_data_input_i,
+    output           [DW-1:0] sdram_data_output_o,
+    output                    sdram_data_out_en_o
 );
 
 
 
 //-----------------------------------------------------------------
-// Key Params
-//-----------------------------------------------------------------
-parameter SDRAM_MHZ             = 50;
-parameter SDRAM_ADDR_W          = 24;
-parameter SDRAM_COL_W           = 9;
-parameter SDRAM_READ_LATENCY    = 2;
-
-//-----------------------------------------------------------------
 // AXI Interface
 //-----------------------------------------------------------------
-wire [ 31:0]  ram_addr_w;
-wire [  3:0]  ram_wr_w;
-wire          ram_rd_w;
-wire          ram_accept_w;
-wire [ 31:0]  ram_write_data_w;
-wire [ 31:0]  ram_read_data_w;
-wire [  7:0]  ram_len_w;
-wire          ram_ack_w;
-wire          ram_error_w;
+wire     [31:0] w_ram_addr;
+wire [DW/8-1:0] w_ram_wr;
+wire            w_ram_rd;
+wire            w_ram_accept;
+wire   [DW-1:0] w_ram_write_data;
+wire   [DW-1:0] w_ram_read_data;
+wire      [7:0] w_ram_len;
+wire            w_ram_ack;
 
 sdram_axi_pmem
+#(
+    .DW                  (DW)
+)
 u_axi
 (
-    .clk_i(clk_i),
-    .rst_i(rst_i),
+    .rst_i               (rst_i),
+    .clk_i               (clk_i),
 
     // AXI port
-    .axi_awvalid_i(inport_awvalid_i),
-    .axi_awaddr_i(inport_awaddr_i),
-    .axi_awid_i(inport_awid_i),
-    .axi_awlen_i(inport_awlen_i),
-    .axi_awburst_i(inport_awburst_i),
-    .axi_wvalid_i(inport_wvalid_i),
-    .axi_wdata_i(inport_wdata_i),
-    .axi_wstrb_i(inport_wstrb_i),
-    .axi_wlast_i(inport_wlast_i),
-    .axi_bready_i(inport_bready_i),
-    .axi_arvalid_i(inport_arvalid_i),
-    .axi_araddr_i(inport_araddr_i),
-    .axi_arid_i(inport_arid_i),
-    .axi_arlen_i(inport_arlen_i),
-    .axi_arburst_i(inport_arburst_i),
-    .axi_rready_i(inport_rready_i),
-    .axi_awready_o(inport_awready_o),
-    .axi_wready_o(inport_wready_o),
-    .axi_bvalid_o(inport_bvalid_o),
-    .axi_bresp_o(inport_bresp_o),
-    .axi_bid_o(inport_bid_o),
-    .axi_arready_o(inport_arready_o),
-    .axi_rvalid_o(inport_rvalid_o),
-    .axi_rdata_o(inport_rdata_o),
-    .axi_rresp_o(inport_rresp_o),
-    .axi_rid_o(inport_rid_o),
-    .axi_rlast_o(inport_rlast_o),
+    .axi_awaddr_i        (s00_axi_awaddr_i),
+    .axi_awid_i          (s00_axi_awid_i),
+    .axi_awlen_i         (s00_axi_awlen_i),
+    .axi_awburst_i       (s00_axi_awburst_i),
+    .axi_awvalid_i       (s00_axi_awvalid_i),
+    .axi_awready_o       (s00_axi_awready_o),
+
+    .axi_wdata_i         (s00_axi_wdata_i),
+    .axi_wstrb_i         (s00_axi_wstrb_i),
+    .axi_wvalid_i        (s00_axi_wvalid_i),
+    .axi_wlast_i         (s00_axi_wlast_i),
+    .axi_wready_o        (s00_axi_wready_o),
+
+    .axi_bid_o           (s00_axi_bid_o),
+    .axi_bresp_o         (s00_axi_bresp_o),
+    .axi_bvalid_o        (s00_axi_bvalid_o),
+    .axi_bready_i        (s00_axi_bready_i),
+
+    .axi_araddr_i        (s00_axi_araddr_i),
+    .axi_arid_i          (s00_axi_arid_i),
+    .axi_arlen_i         (s00_axi_arlen_i),
+    .axi_arburst_i       (s00_axi_arburst_i),
+    .axi_arvalid_i       (s00_axi_arvalid_i),
+    .axi_arready_o       (s00_axi_arready_o),
+
+    .axi_rdata_o         (s00_axi_rdata_o),
+    .axi_rvalid_o        (s00_axi_rvalid_o),
+    .axi_rlast_o         (s00_axi_rlast_o),
+    .axi_rid_o           (s00_axi_rid_o),
+    .axi_rresp_o         (s00_axi_rresp_o),
+    .axi_rready_i        (s00_axi_rready_i),
     
     // RAM interface
-    .ram_addr_o(ram_addr_w),
-    .ram_accept_i(ram_accept_w),
-    .ram_wr_o(ram_wr_w),
-    .ram_rd_o(ram_rd_w),
-    .ram_len_o(ram_len_w),
-    .ram_write_data_o(ram_write_data_w),
-    .ram_ack_i(ram_ack_w),
-    .ram_error_i(ram_error_w),
-    .ram_read_data_i(ram_read_data_w)
+    .ram_addr_o          (w_ram_addr),
+    .ram_accept_i        (w_ram_accept),
+    .ram_wr_o            (w_ram_wr),
+    .ram_rd_o            (w_ram_rd),
+    .ram_len_o           (w_ram_len),
+    .ram_write_data_o    (w_ram_write_data),
+    .ram_ack_i           (w_ram_ack),
+    .ram_read_data_i     (w_ram_read_data)
 );
 
 //-----------------------------------------------------------------
@@ -155,40 +166,39 @@ u_axi
 //-----------------------------------------------------------------
 sdram_axi_core
 #(
-     .SDRAM_MHZ(SDRAM_MHZ)
-    ,.SDRAM_ADDR_W(SDRAM_ADDR_W)
-    ,.SDRAM_COL_W(SDRAM_COL_W)
-    ,.SDRAM_READ_LATENCY(SDRAM_READ_LATENCY)
+    .DW                  (DW),
+    .SDRAM_MHZ           (SDRAM_MHZ),
+    .SDRAM_ROW_W         (SDRAM_ROW_W),
+    .SDRAM_BANK_W        (SDRAM_BANK_W),
+    .SDRAM_COL_W         (SDRAM_COL_W),
+    .SDRAM_READ_LATENCY  (SDRAM_READ_LATENCY)
 )
 u_core
 (
-     .clk_i(clk_i)
-    ,.rst_i(rst_i)
-
-    ,.inport_wr_i(ram_wr_w)
-    ,.inport_rd_i(ram_rd_w)
-    ,.inport_len_i(ram_len_w)
-    ,.inport_addr_i(ram_addr_w)
-    ,.inport_write_data_i(ram_write_data_w)
-    ,.inport_accept_o(ram_accept_w)
-    ,.inport_ack_o(ram_ack_w)
-    ,.inport_error_o(ram_error_w)
-    ,.inport_read_data_o(ram_read_data_w)
-
-    ,.sdram_clk_o(sdram_clk_o)
-    ,.sdram_cke_o(sdram_cke_o)
-    ,.sdram_cs_o(sdram_cs_o)
-    ,.sdram_ras_o(sdram_ras_o)
-    ,.sdram_cas_o(sdram_cas_o)
-    ,.sdram_we_o(sdram_we_o)
-    ,.sdram_dqm_o(sdram_dqm_o)
-    ,.sdram_addr_o(sdram_addr_o)
-    ,.sdram_ba_o(sdram_ba_o)
-    ,.sdram_data_output_o(sdram_data_output_o)
-    ,.sdram_data_out_en_o(sdram_data_out_en_o)
-    ,.sdram_data_input_i(sdram_data_input_i)
+    .rst_i               (rst_i),
+    .clk_i               (clk_i),
+    
+    .inport_wr_i         (w_ram_wr),
+    .inport_rd_i         (w_ram_rd),
+    .inport_len_i        (w_ram_len),
+    .inport_addr_i       (w_ram_addr),
+    .inport_write_data_i (w_ram_write_data),
+    .inport_accept_o     (w_ram_accept),
+    .inport_ack_o        (w_ram_ack),
+    .inport_read_data_o  (w_ram_read_data),
+    
+    .sdram_clk_o         (sdram_clk_o),
+    .sdram_cke_o         (sdram_cke_o),
+    .sdram_cs_o          (sdram_cs_o),
+    .sdram_ras_o         (sdram_ras_o),
+    .sdram_cas_o         (sdram_cas_o),
+    .sdram_we_o          (sdram_we_o),
+    .sdram_dqm_o         (sdram_dqm_o),
+    .sdram_addr_o        (sdram_addr_o),
+    .sdram_ba_o          (sdram_ba_o),
+    .sdram_data_output_o (sdram_data_output_o),
+    .sdram_data_out_en_o (sdram_data_out_en_o),
+    .sdram_data_input_i  (sdram_data_input_i)
 );
-
-
 
 endmodule

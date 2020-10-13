@@ -32,49 +32,58 @@
 //                          Generated File
 //-----------------------------------------------------------------
 
+/* verilator lint_off DECLFILENAME */
 module sdram_axi_pmem
+#(
+    parameter          DW = 32
+)
 (
-    // Inputs
-     input           clk_i
-    ,input           rst_i
-    ,input           axi_awvalid_i
-    ,input  [ 31:0]  axi_awaddr_i
-    ,input  [  3:0]  axi_awid_i
-    ,input  [  7:0]  axi_awlen_i
-    ,input  [  1:0]  axi_awburst_i
-    ,input           axi_wvalid_i
-    ,input  [ 31:0]  axi_wdata_i
-    ,input  [  3:0]  axi_wstrb_i
-    ,input           axi_wlast_i
-    ,input           axi_bready_i
-    ,input           axi_arvalid_i
-    ,input  [ 31:0]  axi_araddr_i
-    ,input  [  3:0]  axi_arid_i
-    ,input  [  7:0]  axi_arlen_i
-    ,input  [  1:0]  axi_arburst_i
-    ,input           axi_rready_i
-    ,input           ram_accept_i
-    ,input           ram_ack_i
-    ,input           ram_error_i
-    ,input  [ 31:0]  ram_read_data_i
-
-    // Outputs
-    ,output          axi_awready_o
-    ,output          axi_wready_o
-    ,output          axi_bvalid_o
-    ,output [  1:0]  axi_bresp_o
-    ,output [  3:0]  axi_bid_o
-    ,output          axi_arready_o
-    ,output          axi_rvalid_o
-    ,output [ 31:0]  axi_rdata_o
-    ,output [  1:0]  axi_rresp_o
-    ,output [  3:0]  axi_rid_o
-    ,output          axi_rlast_o
-    ,output [  3:0]  ram_wr_o
-    ,output          ram_rd_o
-    ,output [  7:0]  ram_len_o
-    ,output [ 31:0]  ram_addr_o
-    ,output [ 31:0]  ram_write_data_o
+    // Reset & clock
+    input              rst_i,
+    input              clk_i,
+    
+    // AXI port
+    input       [31:0] axi_awaddr_i,
+    input        [3:0] axi_awid_i,
+    input        [7:0] axi_awlen_i,
+    input        [1:0] axi_awburst_i,
+    input              axi_awvalid_i,
+    output             axi_awready_o,
+    
+    input     [DW-1:0] axi_wdata_i,
+    input   [DW/8-1:0] axi_wstrb_i,
+    input              axi_wvalid_i,
+    input              axi_wlast_i,
+    output             axi_wready_o,
+    
+    output       [3:0] axi_bid_o,
+    output       [1:0] axi_bresp_o,
+    output             axi_bvalid_o,
+    input              axi_bready_i,
+    
+    input       [31:0] axi_araddr_i,
+    input        [3:0] axi_arid_i,
+    input        [7:0] axi_arlen_i,
+    input        [1:0] axi_arburst_i,
+    input              axi_arvalid_i,
+    output             axi_arready_o,
+    
+    output    [DW-1:0] axi_rdata_o,
+    output             axi_rvalid_o,
+    output             axi_rlast_o,
+    output       [3:0] axi_rid_o,
+    output       [1:0] axi_rresp_o,
+    input              axi_rready_i,
+    
+    // RAM interface
+    output      [31:0] ram_addr_o,
+    input              ram_accept_i,
+    output  [DW/8-1:0] ram_wr_o,
+    output             ram_rd_o,
+    output       [7:0] ram_len_o,
+    output    [DW-1:0] ram_write_data_o,
+    input              ram_ack_i,
+    input     [DW-1:0] ram_read_data_i
 );
 
 
@@ -92,25 +101,25 @@ begin
     mask = 0;
 
     case (axtype)
-    2'd0: // AXI4_BURST_FIXED
-    begin
-        calculate_addr_next = addr;
-    end
-    2'd2: // AXI4_BURST_WRAP
-    begin
-        case (axlen)
-        8'd0:      mask = 32'h03;
-        8'd1:      mask = 32'h07;
-        8'd3:      mask = 32'h0F;
-        8'd7:      mask = 32'h1F;
-        8'd15:     mask = 32'h3F;
-        default:   mask = 32'h3F;
-        endcase
-
-        calculate_addr_next = (addr & ~mask) | ((addr + 4) & mask);
-    end
-    default: // AXI4_BURST_INCR
-        calculate_addr_next = addr + 4;
+        2'd0: // AXI4_BURST_FIXED
+        begin
+            calculate_addr_next = addr;
+        end
+        2'd2: // AXI4_BURST_WRAP
+        begin
+            case (axlen)
+                8'd0:    mask = 32'h03;
+                8'd1:    mask = 32'h07;
+                8'd3:    mask = 32'h0F;
+                8'd7:    mask = 32'h1F;
+                8'd15:   mask = 32'h3F;
+                default: mask = 32'h3F;
+            endcase
+        
+            calculate_addr_next = (addr & ~mask) | ((addr + DW/8) & mask);
+        end
+        default: // AXI4_BURST_INCR
+            calculate_addr_next = addr + DW/8;
     endcase
 end
 endfunction
@@ -118,13 +127,13 @@ endfunction
 //-----------------------------------------------------------------
 // Registers / Wires
 //-----------------------------------------------------------------
-reg [7:0]   req_len_q;
-reg [31:0]  req_addr_q;
+reg   [7:0] req_len_q;
+reg  [31:0] req_addr_q;
 reg         req_rd_q;
 reg         req_wr_q;
-reg [3:0]   req_id_q;
-reg [1:0]   req_axburst_q;
-reg [7:0]   req_axlen_q;
+reg   [3:0] req_id_q;
+reg   [1:0] req_axburst_q;
+reg   [7:0] req_axlen_q;
 reg         req_prio_q;
 reg         req_hold_rd_q;
 reg         req_hold_wr_q;
@@ -134,96 +143,93 @@ wire        req_fifo_accept_w;
 //-----------------------------------------------------------------
 // Sequential
 //-----------------------------------------------------------------
-always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
-begin
-    req_len_q     <= 8'b0;
-    req_addr_q    <= 32'b0;
-    req_wr_q      <= 1'b0;
-    req_rd_q      <= 1'b0;
-    req_id_q      <= 4'b0;
-    req_axburst_q <= 2'b0;
-    req_axlen_q   <= 8'b0;
-    req_prio_q    <= 1'b0;
-end
-else
-begin
-    // Burst continuation
-    if ((ram_wr_o != 4'b0 || ram_rd_o) && ram_accept_i)
-    begin
-        if (req_len_q == 8'd0)
-        begin
-            req_rd_q   <= 1'b0;
-            req_wr_q   <= 1'b0;
-        end
-        else
-        begin
-            req_addr_q <= calculate_addr_next(req_addr_q, req_axburst_q, req_axlen_q);
-            req_len_q  <= req_len_q - 8'd1;
-        end
-    end
+always @ (posedge rst_i or posedge clk_i) begin
 
-    // Write command accepted
-    if (axi_awvalid_i && axi_awready_o)
-    begin
-        // Data ready?
-        if (axi_wvalid_i && axi_wready_o)
-        begin
-            req_wr_q      <= !axi_wlast_i;
-            req_len_q     <= axi_awlen_i - 8'd1;
-            req_id_q      <= axi_awid_i;
-            req_axburst_q <= axi_awburst_i;
-            req_axlen_q   <= axi_awlen_i;
-            req_addr_q    <= calculate_addr_next(axi_awaddr_i, axi_awburst_i, axi_awlen_i);
-        end
-        // Data not ready
-        else
-        begin
-            req_wr_q      <= 1'b1;
-            req_len_q     <= axi_awlen_i;
-            req_id_q      <= axi_awid_i;
-            req_axburst_q <= axi_awburst_i;
-            req_axlen_q   <= axi_awlen_i;
-            req_addr_q    <= axi_awaddr_i;
-        end
-        req_prio_q    <= !req_prio_q;
+    if (rst_i) begin
+        req_len_q     <= 8'b0;
+        req_addr_q    <= 32'b0;
+        req_wr_q      <= 1'b0;
+        req_rd_q      <= 1'b0;
+        req_id_q      <= 4'b0;
+        req_axburst_q <= 2'b0;
+        req_axlen_q   <= 8'b0;
+        req_prio_q    <= 1'b0;
     end
-    // Read command accepted
-    else if (axi_arvalid_i && axi_arready_o)
-    begin
-        req_rd_q      <= (axi_arlen_i != 0);
-        req_len_q     <= axi_arlen_i - 8'd1;
-        req_addr_q    <= calculate_addr_next(axi_araddr_i, axi_arburst_i, axi_arlen_i);
-        req_id_q      <= axi_arid_i;
-        req_axburst_q <= axi_arburst_i;
-        req_axlen_q   <= axi_arlen_i;
-        req_prio_q    <= !req_prio_q;
+    else begin
+        // Burst continuation
+        if ((|{ram_wr_o, ram_rd_o }) & ram_accept_i) begin
+            if (req_len_q == 8'd0) begin
+                req_rd_q   <= 1'b0;
+                req_wr_q   <= 1'b0;
+            end
+            else begin
+                req_addr_q <= calculate_addr_next(req_addr_q, req_axburst_q, req_axlen_q);
+                req_len_q  <= req_len_q - 8'd1;
+            end
+        end
+    
+        // Write command accepted
+        if (axi_awvalid_i & axi_awready_o) begin
+            // Data ready?
+            if (axi_wvalid_i & axi_wready_o) begin
+                req_wr_q      <= ~axi_wlast_i;
+                req_len_q     <= axi_awlen_i - 8'd1;
+                req_id_q      <= axi_awid_i;
+                req_axburst_q <= axi_awburst_i;
+                req_axlen_q   <= axi_awlen_i;
+                req_addr_q    <= calculate_addr_next(axi_awaddr_i, axi_awburst_i, axi_awlen_i);
+            end
+            // Data not ready
+            else begin
+                req_wr_q      <= 1'b1;
+                req_len_q     <= axi_awlen_i;
+                req_id_q      <= axi_awid_i;
+                req_axburst_q <= axi_awburst_i;
+                req_axlen_q   <= axi_awlen_i;
+                req_addr_q    <= axi_awaddr_i;
+            end
+            req_prio_q    <= ~req_prio_q;
+        end
+        // Read command accepted
+        else if (axi_arvalid_i & axi_arready_o) begin
+            req_rd_q      <= |axi_arlen_i;
+            req_len_q     <= axi_arlen_i - 8'd1;
+            req_addr_q    <= calculate_addr_next(axi_araddr_i, axi_arburst_i, axi_arlen_i);
+            req_id_q      <= axi_arid_i;
+            req_axburst_q <= axi_arburst_i;
+            req_axlen_q   <= axi_arlen_i;
+            req_prio_q    <= !req_prio_q;
+        end
     end
 end
 
-always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
-begin
-    req_hold_rd_q   <= 1'b0;
-    req_hold_wr_q   <= 1'b0;
-end
-else
-begin
-    if (ram_rd_o && !ram_accept_i)
-        req_hold_rd_q   <= 1'b1;
-    else if (ram_accept_i)
-        req_hold_rd_q   <= 1'b0;
+always @ (posedge rst_i or posedge clk_i) begin
 
-    if ((|ram_wr_o) && !ram_accept_i)
-        req_hold_wr_q   <= 1'b1;
-    else if (ram_accept_i)
-        req_hold_wr_q   <= 1'b0;
+    if (rst_i) begin
+        req_hold_rd_q <= 1'b0;
+        req_hold_wr_q <= 1'b0;
+    end
+    else begin
+        if (ram_rd_o && !ram_accept_i) begin
+            req_hold_rd_q <= 1'b1;
+        end
+        else if (ram_accept_i) begin
+            req_hold_rd_q <= 1'b0;
+        end
+    
+        if ((|ram_wr_o) & ~ram_accept_i) begin
+            req_hold_wr_q <= 1'b1;
+        end
+        else if (ram_accept_i) begin
+            req_hold_wr_q <= 1'b0;
+        end
+    end
 end
 
 //-----------------------------------------------------------------
 // Request tracking
 //-----------------------------------------------------------------
-wire       req_push_w = (ram_rd_o || (ram_wr_o != 4'b0)) && ram_accept_i;
+wire       req_push_w = (|{ram_wr_o, ram_rd_o }) & ram_accept_i;
 reg [5:0]  req_in_r;
 
 wire       req_out_valid_w;
@@ -231,37 +237,41 @@ wire [5:0] req_out_w;
 wire       resp_accept_w;
 
 
-always @ *
-begin
+always @ (*) begin
     req_in_r = 6'b0;
 
     // First cycle of read burst
-    if (axi_arvalid_i && axi_arready_o)
-        req_in_r = {1'b1, (axi_arlen_i == 8'd0), axi_arid_i};
+    if (axi_arvalid_i & axi_arready_o) begin
+        req_in_r = { 1'b1, ~(|axi_arlen_i), axi_arid_i };
+    end
     // First cycle of write burst
-    else if (axi_awvalid_i && axi_awready_o)
-        req_in_r = {1'b0, (axi_awlen_i == 8'd0), axi_awid_i};
+    else if (axi_awvalid_i & axi_awready_o) begin
+        req_in_r = { 1'b0, ~(|axi_awlen_i), axi_awid_i };
+    end
     // In burst
-    else
-        req_in_r = {ram_rd_o, (req_len_q == 8'd0), req_id_q};
+    else begin
+        req_in_r = { ram_rd_o, ~(|req_len_q), req_id_q };
+    end
 end
 
 sdram_axi_pmem_fifo2
-#( .WIDTH(1 + 1 + 4) )
+#(
+    .WIDTH      (1 + 1 + 4)
+)
 u_requests
 (
-    .clk_i(clk_i),
-    .rst_i(rst_i),
+    .rst_i      (rst_i),
+    .clk_i      (clk_i),
 
     // Input
-    .data_in_i(req_in_r),
-    .push_i(req_push_w),
-    .accept_o(req_fifo_accept_w),
+    .data_in_i  (req_in_r),
+    .push_i     (req_push_w),
+    .accept_o   (req_fifo_accept_w),
 
     // Output
-    .pop_i(resp_accept_w),
-    .data_out_o(req_out_w),
-    .valid_o(req_out_valid_w)
+    .pop_i      (resp_accept_w),
+    .data_out_o (req_out_w),
+    .valid_o    (req_out_valid_w)
 );
 
 wire resp_is_write_w = req_out_valid_w ? ~req_out_w[5] : 1'b0;
@@ -274,50 +284,54 @@ wire [3:0] resp_id_w = req_out_w[3:0];
 //-----------------------------------------------------------------
 wire resp_valid_w;
 
+/* verilator lint_off PINCONNECTEMPTY */
 sdram_axi_pmem_fifo2
-#( .WIDTH(32) )
+#(
+    .WIDTH      (DW)
+)
 u_response
 (
-    .clk_i(clk_i),
-    .rst_i(rst_i),
+    .rst_i      (rst_i),
+    .clk_i      (clk_i),
 
     // Input
-    .data_in_i(ram_read_data_i),
-    .push_i(ram_ack_i),
-    .accept_o(),
+    .data_in_i  (ram_read_data_i),
+    .push_i     (ram_ack_i),
+    .accept_o   (/* open */),
 
     // Output
-    .pop_i(resp_accept_w),
-    .data_out_o(axi_rdata_o),
-    .valid_o(resp_valid_w)
+    .pop_i      (resp_accept_w),
+    .data_out_o (axi_rdata_o),
+    .valid_o    (resp_valid_w)
 );
+/* verilator lint_on PINCONNECTEMPTY */
 
 //-----------------------------------------------------------------
 // RAM Request
 //-----------------------------------------------------------------
 
 // Round robin priority between read and write
-wire write_prio_w   = ((req_prio_q  & !req_hold_rd_q) | req_hold_wr_q);
-wire read_prio_w    = ((!req_prio_q & !req_hold_wr_q) | req_hold_rd_q);
+wire write_prio_w    = (( req_prio_q & ~req_hold_rd_q) | req_hold_wr_q);
+wire read_prio_w     = ((~req_prio_q & ~req_hold_wr_q) | req_hold_rd_q);
 
-wire write_active_w  = (axi_awvalid_i || req_wr_q) && !req_rd_q && req_fifo_accept_w && (write_prio_w || req_wr_q || !axi_arvalid_i);
-wire read_active_w   = (axi_arvalid_i || req_rd_q) && !req_wr_q && req_fifo_accept_w && (read_prio_w || req_rd_q || !axi_awvalid_i);
+wire write_active_w  = (axi_awvalid_i | req_wr_q) & ~req_rd_q & req_fifo_accept_w & (write_prio_w | req_wr_q | ~axi_arvalid_i);
+wire read_active_w   = (axi_arvalid_i | req_rd_q) & ~req_wr_q & req_fifo_accept_w & (read_prio_w  | req_rd_q | ~axi_awvalid_i);
 
-assign axi_awready_o = write_active_w && !req_wr_q && ram_accept_i && req_fifo_accept_w;
-assign axi_wready_o  = write_active_w &&              ram_accept_i && req_fifo_accept_w;
-assign axi_arready_o = read_active_w  && !req_rd_q && ram_accept_i && req_fifo_accept_w;
+assign axi_awready_o = write_active_w & ~req_wr_q & ram_accept_i & req_fifo_accept_w;
+assign axi_wready_o  = write_active_w &             ram_accept_i & req_fifo_accept_w;
+assign axi_arready_o = read_active_w  & ~req_rd_q & ram_accept_i & req_fifo_accept_w;
 
-wire [31:0] addr_w   = ((req_wr_q || req_rd_q) ? req_addr_q:
+wire [31:0] addr_w   = ((req_wr_q | req_rd_q) ? req_addr_q:
                         write_active_w ? axi_awaddr_i : axi_araddr_i);
 
-wire wr_w    = write_active_w && axi_wvalid_i;
+wire wr_w    = write_active_w & axi_wvalid_i;
 wire rd_w    = read_active_w;
 
 // RAM if
 assign ram_addr_o       = addr_w;
 assign ram_write_data_o = axi_wdata_i;
 assign ram_rd_o         = rd_w;
-assign ram_wr_o         = wr_w ? axi_wstrb_i : 4'b0;
+assign ram_wr_o         = wr_w ? axi_wstrb_i : {DW/8{1'b0}};
 assign ram_len_o        = axi_awvalid_i ? axi_awlen_i:
                           axi_arvalid_i ? axi_arlen_i : 8'b0;
 
@@ -357,16 +371,16 @@ module sdram_axi_pmem_fifo2
 //-----------------------------------------------------------------
 (
     // Inputs
-     input               clk_i
-    ,input               rst_i
-    ,input  [WIDTH-1:0]  data_in_i
-    ,input               push_i
-    ,input               pop_i
+    input              rst_i,
+    input              clk_i,
+    input  [WIDTH-1:0] data_in_i,
+    input              push_i,
+    input              pop_i,
 
     // Outputs
-    ,output [WIDTH-1:0]  data_out_o
-    ,output              accept_o
-    ,output              valid_o
+    output [WIDTH-1:0] data_out_o,
+    output             accept_o,
+    output             valid_o
 );
 
 //-----------------------------------------------------------------
@@ -377,52 +391,52 @@ localparam COUNT_W = ADDR_W + 1;
 //-----------------------------------------------------------------
 // Registers
 //-----------------------------------------------------------------
-reg [WIDTH-1:0]         ram [DEPTH-1:0];
-reg [ADDR_W-1:0]        rd_ptr;
-reg [ADDR_W-1:0]        wr_ptr;
-reg [COUNT_W-1:0]       count;
+reg   [WIDTH-1:0] r_ram [DEPTH-1:0];
+reg  [ADDR_W-1:0] r_rd_ptr;
+reg  [ADDR_W-1:0] r_wr_ptr;
+reg [COUNT_W-1:0] r_count;
 
 //-----------------------------------------------------------------
 // Sequential
 //-----------------------------------------------------------------
-always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
-begin
-    count   <= {(COUNT_W) {1'b0}};
-    rd_ptr  <= {(ADDR_W) {1'b0}};
-    wr_ptr  <= {(ADDR_W) {1'b0}};
-end
-else
-begin
-    // Push
-    if (push_i & accept_o)
-    begin
-        ram[wr_ptr] <= data_in_i;
-        wr_ptr      <= wr_ptr + 1;
+always @ (posedge rst_i or posedge clk_i) begin
+
+    if (rst_i) begin
+        r_count  <= {COUNT_W{1'b0}};
+        r_rd_ptr <= {ADDR_W{1'b0}};
+        r_wr_ptr <= {ADDR_W{1'b0}};
     end
-
-    // Pop
-    if (pop_i & valid_o)
-        rd_ptr      <= rd_ptr + 1;
-
-    // Count up
-    if ((push_i & accept_o) & ~(pop_i & valid_o))
-        count <= count + 1;
-    // Count down
-    else if (~(push_i & accept_o) & (pop_i & valid_o))
-        count <= count - 1;
+    else
+    begin
+        // Push
+        if (push_i & accept_o) begin
+            r_ram[r_wr_ptr] <= data_in_i;
+            r_wr_ptr <= r_wr_ptr + 'd1;
+        end
+    
+        // Pop
+        if (pop_i & valid_o) begin
+            r_rd_ptr <= r_rd_ptr + 'd1;
+        end
+    
+        // Count up
+        if ((push_i & accept_o) & ~(pop_i & valid_o)) begin
+            r_count <= r_count + 'd1;
+        end
+        // Count down
+        else if (~(push_i & accept_o) & (pop_i & valid_o)) begin
+            r_count <= r_count - 'd1;
+        end
+    end
 end
 
 //-------------------------------------------------------------------
 // Combinatorial
 //-------------------------------------------------------------------
-/* verilator lint_off WIDTH */
-assign accept_o   = (count != DEPTH);
-assign valid_o    = (count != 0);
-/* verilator lint_on WIDTH */
+assign accept_o   = (r_count != DEPTH[COUNT_W-1:0]) ? 1'b1 : 1'b0;
+assign valid_o    = |r_count;
 
-assign data_out_o = ram[rd_ptr];
-
-
+assign data_out_o = r_ram[r_rd_ptr];
 
 endmodule
+/* verilator lint_on DECLFILENAME */
